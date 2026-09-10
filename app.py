@@ -137,6 +137,7 @@ def apply_court_theme():
     image_url = ""
     if image_path.is_file():
         image_url = "data:image/png;base64," + base64.b64encode(image_path.read_bytes()).decode("ascii")
+    chaos = {"차분": "calm", "혼란": "busy", "대혼돈": "chaos"}[st.session_state.get("chaos_level", "대혼돈")]
     st.markdown("""
     <style>
     .stApp { background: #82c2ed; color: #16334b; color-scheme: light; }
@@ -169,6 +170,68 @@ def apply_court_theme():
         .court-copy h1 { font-size: 28px; }
     }
     </style>
+    """, unsafe_allow_html=True)
+    st.markdown("""
+    <style>
+    .stApp:has(.court-scenery.busy), .stApp:has(.court-scenery.chaos) {
+        background: linear-gradient(120deg,#8ed9ff,#ffcbeb,#cebaff,#fff1b8,#a6eee1,#8ed9ff);
+        background-size: 500% 500%; animation: court-rainbow 28s ease infinite;
+    }
+    [data-testid="stMainBlockContainer"] { position: relative; z-index: 1; }
+    [data-testid="stSidebar"] { z-index: 5; }
+    .court-scenery { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+    .court-scenery img { position: absolute; width: clamp(95px,14vw,210px); border-radius: 50%;
+        opacity: .5; filter: drop-shadow(0 8px 10px #577ead44); animation: court-float 15s ease-in-out infinite; }
+    .court-scenery .b1 { top: 12%; left: 1%; }
+    .court-scenery .b2 { top: 8%; right: 1%; animation-delay: -4s; }
+    .court-scenery .b3 { top: 49%; right: -3%; animation-delay: -8s; width: 160px; }
+    .court-scenery .b4 { bottom: 1%; left: 3%; animation-delay: -12s; width: 140px; }
+    .court-scenery .b5 { bottom: -3%; right: 16%; animation-delay: -6s; width: 240px; }
+    .court-prop { position: absolute; font-size: 48px; opacity: .5; animation: court-spin 35s linear infinite; }
+    .p1 { left: 15%; top: 36%; } .p2 { right: 5%; bottom: 22%; } .p3 { left: 45%; bottom: 2%; }
+    .court-bubble { position: absolute; max-width: 200px; padding: 12px 18px; border-radius: 24px;
+        background: #fffffff2; border: 2px solid #64aed6; color: #244663; font-weight: 700;
+        box-shadow: 4px 5px 0 #87adcd55; animation: court-float 19s ease-in-out infinite; }
+    .court-bubble:after { content: ''; position: absolute; bottom: -10px; left: 24px;
+        border-top: 10px solid #64aed6; border-right: 12px solid transparent; }
+    .s1 { top: 31%; right: 1%; } .s2 { bottom: 24%; left: 1%; animation-delay: -6s; }
+    .s3 { bottom: 5%; right: 2%; animation-delay: -12s; }
+    .court-scenery.calm { display: none; }
+    .court-scenery.busy .b4, .court-scenery.busy .b5, .court-scenery.busy .p3,
+    .court-scenery.busy .s3 { display: none; }
+    .stApp:has(.court-scenery.chaos) .court-copy h1 {
+        color: #77368a !important; background: linear-gradient(90deg,#9e2654,#6750af,#156b93,#9e2654);
+        background-size: 300%; background-clip: text; -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent; transform: rotate(-2deg);
+        filter: drop-shadow(2px 2px 0 #fff) drop-shadow(3px 3px 0 #f3a5ce) drop-shadow(4px 4px 0 #b9a7e9);
+        animation: court-rainbow 18s ease infinite;
+    }
+    .court-copy { background: linear-gradient(90deg,#eaf7fff5 80%,transparent); }
+    [data-testid="stExpander"] { background: #fff; }
+    @keyframes court-rainbow { 0%,100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+    @keyframes court-float { 0%,100% { transform: translateY(0) rotate(-5deg); } 50% { transform: translateY(-24px) rotate(6deg); } }
+    @keyframes court-spin { to { transform: rotate(360deg); } }
+    @media (max-width: 700px) {
+        .court-scenery img { width: 90px !important; opacity: .25; }
+        .court-prop { font-size: 30px; }
+        .court-bubble { font-size: 12px; max-width: 140px; padding: 8px 12px; }
+        .court-scenery .s2, .court-scenery .s3, .court-scenery .b5 { display: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .stApp, .court-scenery *, .court-copy h1 { animation: none !important; }
+        [data-testid="stBalloons"] { display: none !important; }
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    faces = "".join(f'<img class="b{i}" src="{image_url}" alt="">' for i in range(1, 6)) if image_url else ""
+    st.markdown(f"""
+    <div class="court-scenery {chaos}" aria-hidden="true">
+      {faces}
+      <span class="court-prop p1">⚖️</span><span class="court-prop p2">🔨</span><span class="court-prop p3">🦦</span>
+      <span class="court-bubble s1">어라… 둘 다 맞는 말 같은데…</span>
+      <span class="court-bubble s2">이의가 있겠는걸…</span>
+      <span class="court-bubble s3">판결보다 간식이 먼저일까…?</span>
+    </div>
     """, unsafe_allow_html=True)
     # Only the bundled image is interpolated; user and LLM content never enters HTML.
     st.markdown(f"""
@@ -402,6 +465,8 @@ def main():
     st.session_state.setdefault("workflow_name", "쓸데없는 토론 재판소")
     with st.sidebar:
         st.header("연결 설정")
+        st.select_slider("정신없음", options=["차분", "혼란", "대혼돈"], value="대혼돈", key="chaos_level")
+        st.caption("차분은 정지 배경 · 혼란은 가벼운 움직임 · 대혼돈은 전체 효과")
         api_key = st.text_input("OpenAI API key", type="password", key="api_key")
         st.caption("키는 현재 세션 메모리에서만 사용하며 파일에 저장하지 않습니다.")
         st.info("실행 시 프롬프트와 검색된 문단이 OpenAI로 전송됩니다. API 사용료가 발생합니다.")
@@ -488,6 +553,8 @@ def main():
                         previous = result["output"]
                 progress.progress(1.0, text="모든 단계 완료")
                 st.session_state.run_status = "완료"
+                if st.session_state.get("chaos_level", "대혼돈") != "차분":
+                    st.balloons()
             except AuthenticationError:
                 st.session_state.run_status = "중단: API key를 확인하세요."
             except RateLimitError:
