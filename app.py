@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import base64
 import io
 import json
 import zipfile
@@ -19,6 +20,56 @@ MAX_TEXT = 200_000
 MAX_CHUNKS = 1500
 WORKFLOW_FIELDS = ("name", "model", "system", "extra", "rag", "top_k", "max_tokens")
 MAX_WORKFLOW_BYTES = 2 * 1024 * 1024
+
+
+def apply_court_theme():
+    image_path = Path(__file__).parent / "assets" / "bonobono.png"
+    image_url = ""
+    if image_path.is_file():
+        image_url = "data:image/png;base64," + base64.b64encode(image_path.read_bytes()).decode("ascii")
+    st.markdown("""
+    <style>
+    .stApp { background: #82c2ed; color: #16334b; color-scheme: light; }
+    [data-testid="stHeader"] { background: rgba(235,247,255,.92); }
+    [data-testid="stSidebar"] { background: #eaf6ff; color: #16334b; }
+    [data-testid="stMainBlockContainer"] { max-width: 1180px; }
+    [data-testid="stVerticalBlockBorderWrapper"], [data-testid="stExpander"] {
+        background: rgba(255,255,255,.94); border-radius: 20px;
+        border-color: #bedef2; box-shadow: 0 8px 24px rgba(26,85,125,.08);
+    }
+    h1, h2, h3, label, [data-testid="stWidgetLabel"],
+    [data-testid="stCaptionContainer"], [data-testid="stText"] { color: #16334b !important; }
+    [data-baseweb="input"], [data-baseweb="textarea"],
+    input, textarea { background: #fff !important; color: #16334b !important; caret-color: #16334b; }
+    [data-testid="stFileUploaderDropzone"] { background: #f2faff; color: #16334b; }
+    button[kind="secondary"] { background: #fff; color: #214b69; border-color: #b4d8ee; }
+    button[kind="primary"] { background: #175b8c; color: white; border-radius: 14px; border: 0; }
+    button:focus-visible { outline: 3px solid #efad40 !important; outline-offset: 3px; }
+    .court-hero { min-height: 360px; border-radius: 28px; overflow: hidden;
+        background-color: #82c2ed; background-size: auto 100%; background-position: right center;
+        background-repeat: no-repeat; display: flex; align-items: center;
+        border: 1px solid rgba(255,255,255,.65); margin-bottom: 26px; }
+    .court-copy { max-width: 55%; padding: 42px; background: linear-gradient(90deg,#eaf7ff 78%,transparent); }
+    .court-copy .eyebrow { color: #235575; font-weight: 700; letter-spacing: .12em; font-size: 12px; }
+    .court-copy h1 { font-size: clamp(28px,4vw,44px); line-height: 1.3; margin: 14px 0; padding: 0; }
+    .court-copy p { font-size: 16px; line-height: 1.7; color: #294e68; }
+    @media (max-width: 700px) {
+        .court-hero { min-height: 440px; align-items: flex-end; background-position: center top; background-size: auto 300px; }
+        .court-copy { max-width: 100%; width: 100%; padding: 22px; background: rgba(234,247,255,.95); }
+        .court-copy h1 { font-size: 28px; }
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    # Only the bundled image is interpolated; user and LLM content never enters HTML.
+    st.markdown(f"""
+    <section class="court-hero" style="background-image: url('{image_url}')">
+      <div class="court-copy">
+        <div class="eyebrow">BONOBONO · DEBATE COURT</div>
+        <h1>보노보노의<br>쓸데없는 토론 재판소</h1>
+        <p>아무래도… 판결을 내려야겠는걸.<br>사소한 논쟁도 여기서는 진지하게 다룹니다.</p>
+      </div>
+    </section>
+    """, unsafe_allow_html=True)
 
 
 def export_workflow(name, agents):
@@ -232,7 +283,7 @@ def reset_session():
 
 
 def main():
-    st.set_page_config(page_title="Linear LLM Studio", page_icon="🔗", layout="wide")
+    st.set_page_config(page_title="보노보노의 쓸데없는 토론 재판소", page_icon="🦦", layout="wide")
     if "agents" not in st.session_state:
         st.session_state.agents = [new_agent("분석가", "주어진 내용을 분석해 핵심 사항과 근거를 정리하세요."),
                                    new_agent("작성자", "앞선 분석을 바탕으로 읽기 쉬운 최종 답변을 작성하세요.")]
@@ -249,8 +300,8 @@ def main():
         st.divider()
         st.caption("설정·파일·결과는 현재 세션에 유지됩니다. 새로고침이나 서버 재시작 시 사라질 수 있습니다.")
         st.caption("RAG: 한국어를 지원하는 문자 단위 TF-IDF 검색. 별도의 임베딩 API 비용은 없습니다.")
-    st.title("🔗 Linear LLM Studio")
-    st.write("에이전트를 순서대로 연결하고, 한 번의 입력으로 워크플로를 실행하세요.")
+    apply_court_theme()
+    st.write("변호사와 판사를 순서대로 연결하고, 오늘의 논쟁을 시작해 보세요.")
     st.subheader("1. 에이전트 편집")
     if st.button("＋ 에이전트 추가", disabled=len(st.session_state.agents) >= 12):
         st.session_state.agents.append(new_agent())
@@ -288,7 +339,7 @@ def main():
     st.text(" → ".join(a["name"] or "이름 없음" for a in st.session_state.agents) or "에이전트를 추가하세요.")
     prompt = st.text_area("User prompt · 첫 번째 에이전트에 전달할 입력", key="user_prompt", height=150, max_chars=50000)
     st.caption("두 번째 단계부터는 바로 앞 에이전트의 출력과 해당 단계의 추가 요청을 전달합니다.")
-    if st.button("▶ 워크플로 실행", type="primary"):
+    if st.button("재판을 시작하겠는걸…", type="primary"):
         st.session_state.results = []
         st.session_state.run_status = ""
         agents = st.session_state.agents
