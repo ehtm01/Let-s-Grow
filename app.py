@@ -137,7 +137,7 @@ def apply_court_theme():
     image_url = ""
     if image_path.is_file():
         image_url = "data:image/png;base64," + base64.b64encode(image_path.read_bytes()).decode("ascii")
-    chaos = {"차분": "calm", "혼란": "busy", "대혼돈": "chaos"}[st.session_state.get("chaos_level", "대혼돈")]
+    chaos = {"차분": "calm", "혼돈": "chaos", "대혼돈": "chaos ultra"}[st.session_state.get("chaos_level", "대혼돈")]
     st.markdown("""
     <style>
     .stApp { background: #82c2ed; color: #16334b; color-scheme: light; }
@@ -180,7 +180,8 @@ def apply_court_theme():
     [data-testid="stMainBlockContainer"] { position: relative; z-index: 1; }
     [data-testid="stSidebar"] { z-index: 5; }
     .court-scenery { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
-    .court-scenery img { position: absolute; width: clamp(95px,14vw,210px); border-radius: 50%;
+    .court-scenery .court-face { position: absolute; width: clamp(95px,14vw,210px); aspect-ratio: 8 / 5;
+        background: var(--bono) center / cover; border-radius: 50%;
         opacity: .5; filter: drop-shadow(0 8px 10px #577ead44); animation: court-float 15s ease-in-out infinite; }
     .court-scenery .b1 { top: 12%; left: 1%; }
     .court-scenery .b2 { top: 8%; right: 1%; animation-delay: -4s; }
@@ -212,7 +213,7 @@ def apply_court_theme():
     @keyframes court-float { 0%,100% { transform: translateY(0) rotate(-5deg); } 50% { transform: translateY(-24px) rotate(6deg); } }
     @keyframes court-spin { to { transform: rotate(360deg); } }
     @media (max-width: 700px) {
-        .court-scenery img { width: 90px !important; opacity: .25; }
+        .court-scenery .court-face { width: 90px !important; opacity: .25; }
         .court-prop { font-size: 30px; }
         .court-bubble { font-size: 12px; max-width: 140px; padding: 8px 12px; }
         .court-scenery .s2, .court-scenery .s3, .court-scenery .b5 { display: none; }
@@ -223,10 +224,72 @@ def apply_court_theme():
     }
     </style>
     """, unsafe_allow_html=True)
-    faces = "".join(f'<img class="b{i}" src="{image_url}" alt="">' for i in range(1, 6)) if image_url else ""
+    st.markdown("""
+    <style>
+    .ultra-only { display: none; }
+    .ultra .ultra-only { display: block; }
+    .stApp:has(.court-scenery.ultra) {
+        background: repeating-linear-gradient(125deg,#ffb3df 0%,#b9a2ff 18%,#6ccfff 36%,#89f4c2 54%,#ffe68b 72%,#ffb3df 100%);
+        background-size: 600% 600%; animation: court-rainbow 7s ease-in-out infinite;
+    }
+    .court-scenery.ultra .court-face { opacity: .85; border: 4px solid #ffffffb3;
+        box-shadow: 8px 8px 0 #ea61b577, -6px -5px 0 #55cde077;
+        animation: court-orbit 6s ease-in-out infinite alternate; }
+    .court-scenery.ultra .court-face:nth-child(3n) { animation-direction: alternate-reverse; animation-duration: 9s; }
+    .court-scenery.ultra .court-prop { opacity: .85; font-size: 70px; animation-duration: 6s; }
+    .court-scenery.ultra .court-bubble { border: 3px solid #934fb4;
+        box-shadow: 5px 5px 0 #ffd25f; animation: court-wobble 4s ease-in-out infinite alternate; }
+    .court-scenery.ultra .giant-bono { width: 55vw; opacity: .35; left: 25%; top: 24%;
+        animation: court-giant 12s ease-in-out infinite alternate; border-radius: 45%; }
+    .court-ticker { position: absolute; width: 220%; left: -50%; padding: 10px;
+        background: #ffe46b; color: #443053; font-size: 24px; font-weight: 900;
+        white-space: nowrap; border-block: 3px dashed #965aab;
+        animation: court-parade 22s linear infinite alternate; }
+    .ticker-one { top: 8%; transform: rotate(-8deg); }
+    .ticker-two { bottom: 12%; background: #ffbade; animation-direction: alternate-reverse; }
+    .stApp:has(.court-scenery.ultra) .court-hero { border: 5px solid #fff;
+        box-shadow: 0 0 0 5px #f59ecf,0 0 0 10px #9dabff,0 0 0 15px #ffe498;
+        margin: 20px 10px 40px; }
+    .stApp:has(.court-scenery.ultra) .court-copy h1 {
+        animation: court-title 3s ease-in-out infinite alternate;
+        filter: drop-shadow(3px 3px 0 #fff) drop-shadow(5px 5px 0 #ee81c7) drop-shadow(7px 7px 0 #8b99ed);
+    }
+    @keyframes court-orbit { from { transform: translate(-35px,30px) rotate(-25deg) scale(.8); }
+        to { transform: translate(60px,-65px) rotate(28deg) scale(1.2); } }
+    @keyframes court-wobble { from { transform: translateY(18px) rotate(-9deg); }
+        to { transform: translateY(-32px) rotate(9deg); } }
+    @keyframes court-giant { from { transform: rotate(-18deg) scale(.8); } to { transform: rotate(18deg) scale(1.25); } }
+    @keyframes court-parade { from { translate: -10% 0; rotate: -7deg; } to { translate: 15% 0; rotate: 7deg; } }
+    @keyframes court-title { from { transform: rotate(-5deg) scale(.96); background-position: 0% 50%; }
+        to { transform: rotate(4deg) scale(1.04); background-position: 100% 50%; } }
+    @media (max-width: 700px) {
+        .court-scenery.ultra .court-face { width: 100px !important; }
+        .court-scenery.ultra .giant-bono { width: 75vw !important; }
+        .court-scenery.ultra .extra-face:nth-child(even) { display: none; }
+        .court-ticker { font-size: 16px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .stApp:has(.court-scenery.ultra), .court-scenery.ultra *,
+        .stApp:has(.court-scenery.ultra) .court-copy h1 { animation: none !important; }
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    faces = "".join(f'<div class="court-face b{i}"></div>' for i in range(1, 6)) if image_url else ""
+    extras = ""
+    if "ultra" in chaos:
+        if image_url:
+            extras += '<div class="court-face giant-bono ultra-only"></div>'
+            extras += "".join(
+                f'<div class="court-face extra-face ultra-only" style="left:{(i * 31) % 95}%;top:{(i * 23) % 90}%;width:{95 + i % 4 * 40}px;animation-delay:-{i * .7}s"></div>'
+                for i in range(12))
+        for i, phrase in enumerate(("어라… 재판이 어디로 가는 걸까…?", "가만히 있으면 무죄일까…?", "판결문보다 조개가 좋겠는걸…", "도대체 누가 맞는 걸까…?", "이렇게 진지할 일인 걸까…?")):
+            extras += f'<span class="court-bubble ultra-only" style="left:{8 + i * 19}%;top:{15 + i * 16}%;animation-delay:-{i}s">{phrase}</span>'
+        extras += '<div class="court-ticker ticker-one ultra-only">' + '🦦 이의가 있겠는걸… ⚖️ 잠깐만 생각해 보자… ' * 12 + '</div>'
+        extras += '<div class="court-ticker ticker-two ultra-only">' + '🔨 아무래도 판결을 내려야겠는걸… 🐚 간식은 언제 나올까… ' * 12 + '</div>'
     st.markdown(f"""
-    <div class="court-scenery {chaos}" aria-hidden="true">
+    <div class="court-scenery {chaos}" style="--bono: url('{image_url}')" aria-hidden="true">
       {faces}
+      {extras}
       <span class="court-prop p1">⚖️</span><span class="court-prop p2">🔨</span><span class="court-prop p3">🦦</span>
       <span class="court-bubble s1">어라… 둘 다 맞는 말 같은데…</span>
       <span class="court-bubble s2">이의가 있겠는걸…</span>
@@ -465,8 +528,10 @@ def main():
     st.session_state.setdefault("workflow_name", "쓸데없는 토론 재판소")
     with st.sidebar:
         st.header("연결 설정")
-        st.select_slider("정신없음", options=["차분", "혼란", "대혼돈"], value="대혼돈", key="chaos_level")
-        st.caption("차분은 정지 배경 · 혼란은 가벼운 움직임 · 대혼돈은 전체 효과")
+        if st.session_state.get("chaos_level") == "혼란":
+            st.session_state.chaos_level = "혼돈"
+        st.select_slider("정신없음", options=["차분", "혼돈", "대혼돈"], value="대혼돈", key="chaos_level")
+        st.caption("차분은 정지 배경 · 혼돈은 기존 대혼돈 · 대혼돈은 보노보노 대행진")
         api_key = st.text_input("OpenAI API key", type="password", key="api_key")
         st.caption("키는 현재 세션 메모리에서만 사용하며 파일에 저장하지 않습니다.")
         st.info("실행 시 프롬프트와 검색된 문단이 OpenAI로 전송됩니다. API 사용료가 발생합니다.")
