@@ -17,6 +17,89 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 MAX_BYTES = 10 * 1024 * 1024
 MAX_TEXT = 200_000
 MAX_CHUNKS = 1500
+WORKFLOW_FIELDS = ("name", "model", "system", "extra", "rag", "top_k", "max_tokens")
+MAX_WORKFLOW_BYTES = 2 * 1024 * 1024
+
+
+def export_workflow(name, agents):
+    """Export only editable configuration, in execution order."""
+    return json.dumps({
+        "format": "linear-llm-studio", "version": 1, "name": name,
+        "agents": [{field: agent[field] for field in WORKFLOW_FIELDS} for agent in agents],
+    }, ensure_ascii=False, indent=2).encode("utf-8")
+
+
+def parse_workflow(data):
+    """Validate the entire file before changing session state."""
+    if len(data) > MAX_WORKFLOW_BYTES:
+        raise ValueError("워크플로 파일은 2 MB까지 지원합니다.")
+    try:
+        config = json.loads(data.decode("utf-8-sig"))
+    except (UnicodeError, ValueError, RecursionError):
+        raise ValueError("올바른 UTF-8 JSON 파일을 선택하세요.") from None
+    if (not isinstance(config, dict) or config.get("format") != "linear-llm-studio"
+            or type(config.get("version")) is not int or config["version"] != 1):
+        raise ValueError("이 앱에서 저장한 버전 1 워크플로 파일을 선택하세요.")
+    name, agents = config.get("name"), config.get("agents")
+    if not isinstance(name, str) or len(name) > 100:
+        raise ValueError("워크플로 이름은 100자 이내의 문자열이어야 합니다.")
+    if not isinstance(agents, list) or len(agents) > 12:
+        raise ValueError("에이전트 목록은 최대 12개까지 지원합니다.")
+    restored = []
+    for i, agent in enumerate(agents, 1):
+        if not isinstance(agent, dict):
+            raise ValueError(f"{i}번 에이전트 형식이 올바르지 않습니다.")
+        for field, limit in (("name", 100), ("model", 200), ("system", 20000), ("extra", 20000)):
+            if not isinstance(agent.get(field), str) or len(agent[field]) > limit:
+                raise ValueError(f"{i}번 에이전트의 {field} 값은 {limit}자 이내의 문자열이어야 합니다.")
+        if type(agent.get("rag")) is not bool:
+            raise ValueError(f"{i}번 에이전트의 RAG 설정이 올바르지 않습니다.")
+        for field, low, high in (("top_k", 1, 8), ("max_tokens", 256, 32768)):
+            if type(agent.get(field)) is not int or not low <= agent[field] <= high:
+                raise ValueError(f"{i}번 에이전트의 {field} 값은 {low}~{high} 정수여야 합니다.")
+        # Never trust imported IDs or hydrate arbitrary session-state keys.
+        restored.append(dict(id=uuid4().hex, **{field: agent[field] for field in WORKFLOW_FIELDS}))
+    return name, restored
+
+
+def load_workflow():
+    uploaded = st.session_state.get("workflow_import")
+    try:
+        if uploaded is None:
+            raise ValueError("불러올 워크플로 파일을 선택하세요.")
+        if uploaded.size > MAX_WORKFLOW_BYTES:
+            raise ValueError("워크플로 파일은 2 MB까지 지원합니다.")
+        name, agents = parse_workflow(uploaded.getvalue())
+    except ValueError as exc:
+        st.session_state.workflow_notice = (False, str(exc))
+        return
+    for agent in list(st.session_state.agents):
+        delete_agent(agent["id"])
+    st.session_state.agents = agents
+    st.session_state.indexes = {}
+    st.session_state.results = []
+    st.session_state.run_status = ""
+    st.session_state.user_prompt = ""
+    st.session_state.workflow_name = name
+    st.session_state.workflow_notice = (True, "워크플로를 불러왔습니다. RAG 참조 파일은 다시 업로드하세요.")
+
+
+def workflow_controls():
+    # Render after the agent editors so the download includes this run's edits.
+    with st.sidebar:
+        st.divider()
+        st.header("워크플로 저장 · 불러오기")
+        name = st.text_input("워크플로 이름", key="workflow_name", max_chars=100)
+        st.download_button("워크플로 저장 (.json)", export_workflow(name, st.session_state.agents),
+                           "linear_workflow.json", "application/json", key="workflow_export")
+        st.caption("에이전트 순서·모델·프롬프트·RAG 설정을 PC에 저장합니다. API key, 참조 파일, 실행 입력·결과는 포함하지 않습니다.")
+        st.file_uploader("저장한 워크플로 파일", type=["json"], max_upload_size=2, key="workflow_import")
+        st.caption("불러오면 현재 구성을 교체하고 참조 파일과 실행 결과를 비웁니다. 필요한 구성은 먼저 저장하세요.")
+        st.button("워크플로 불러오기", key="workflow_load", on_click=load_workflow,
+                  disabled=st.session_state.get("workflow_import") is None)
+        notice = st.session_state.pop("workflow_notice", None)
+        if notice:
+            (st.success if notice[0] else st.error)(notice[1])
 
 
 def new_agent(name="새 에이전트", system="입력을 분석하고 명확한 한국어로 답변하세요."):
@@ -156,6 +239,7 @@ def main():
         st.session_state.indexes = {}
         st.session_state.results = []
         st.session_state.run_status = ""
+    st.session_state.setdefault("workflow_name", "내 워크플로")
     with st.sidebar:
         st.header("연결 설정")
         api_key = st.text_input("OpenAI API key", type="password", key="api_key")
@@ -183,7 +267,7 @@ def main():
             cols[3].button("삭제", key="delete_" + aid, on_click=delete_agent, args=(aid,))
             left, right = st.columns(2)
             agent["name"] = left.text_input("에이전트 이름", value=agent["name"], key="name_" + aid, max_chars=100)
-            agent["model"] = right.text_input("OpenAI 모델 ID", value=agent["model"], key="model_" + aid,
+            agent["model"] = right.text_input("OpenAI 모델 ID", value=agent["model"], key="model_" + aid, max_chars=200,
                                             help="사용 중인 API 프로젝트에서 접근 가능한 Responses API 텍스트 모델을 입력하세요.")
             agent["system"] = st.text_area("System prompt · 역할과 지침", value=agent["system"],
                                            key="system_" + aid, height=100, max_chars=20000)
@@ -199,6 +283,7 @@ def main():
             agent["top_k"] = st.slider("검색할 문단 수", 1, 8, agent["top_k"], key="topk_" + aid)
             if not agent["rag"]:
                 st.caption("RAG를 켜면 위 파일을 이 에이전트의 검색에 사용합니다.")
+    workflow_controls()
     st.subheader("2. 워크플로 실행")
     st.text(" → ".join(a["name"] or "이름 없음" for a in st.session_state.agents) or "에이전트를 추가하세요.")
     prompt = st.text_area("User prompt · 첫 번째 에이전트에 전달할 입력", key="user_prompt", height=150, max_chars=50000)
